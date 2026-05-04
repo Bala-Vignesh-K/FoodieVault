@@ -45,6 +45,7 @@ export default function TabsLayout() {
           name="index"
           options={{
             title: "Home",
+            tabBarTestID: "tab-home",
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
             ),
@@ -54,6 +55,7 @@ export default function TabsLayout() {
           name="places"
           options={{
             title: "Places",
+            tabBarTestID: "tab-places",
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? "location" : "location-outline"} size={22} color={color} />
             ),
@@ -63,6 +65,7 @@ export default function TabsLayout() {
           name="recipes"
           options={{
             title: "Recipes",
+            tabBarTestID: "tab-recipes",
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? "restaurant" : "restaurant-outline"} size={22} color={color} />
             ),
@@ -72,6 +75,7 @@ export default function TabsLayout() {
           name="items"
           options={{
             title: "Order",
+            tabBarTestID: "tab-items",
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? "bag-handle" : "bag-handle-outline"} size={22} color={color} />
             ),
@@ -81,6 +85,7 @@ export default function TabsLayout() {
           name="profile"
           options={{
             title: "Profile",
+            tabBarTestID: "tab-profile",
             tabBarIcon: ({ color, focused }) => (
               <Ionicons name={focused ? "person-circle" : "person-circle-outline"} size={24} color={color} />
             ),
