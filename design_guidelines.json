@@ -1,0 +1,175 @@
+{
+  "theme": "LIGHT",
+  "archetype": "1_ORGANIC_AND_EARTHY",
+  "mood": "Warm, Appetizing, Premium, Sensory",
+  "colors": {
+    "background_primary": "#FDFBF7",
+    "background_secondary": "#F3EFEA",
+    "primary": "#E05D3A",
+    "primary_hover": "#C94B2A",
+    "secondary": "#7A8B76",
+    "secondary_hover": "#657662",
+    "text_primary": "#1A1714",
+    "text_secondary": "#6A645D",
+    "border": "#E5E0D8",
+    "error": "#D34C4C",
+    "success": "#7A8B76",
+    "card_bg": "#FFFFFF",
+    "overlay": "rgba(26, 23, 20, 0.4)"
+  },
+  "typography": {
+    "fonts": {
+      "headings": "Cabinet Grotesk",
+      "body": "Manrope",
+      "mono": "JetBrains Mono"
+    },
+    "hierarchy": {
+      "h1": "text-4xl sm:text-5xl font-black tracking-tighter leading-none text-text_primary",
+      "h2": "text-2xl sm:text-3xl font-bold tracking-tight text-text_primary",
+      "h3": "text-xl font-bold tracking-tight text-text_primary",
+      "body": "text-base font-medium leading-relaxed text-text_secondary",
+      "label": "text-xs font-bold uppercase tracking-[0.2em] text-text_secondary"
+    }
+  },
+  "components": {
+    "cards": {
+      "default": "bg-card_bg rounded-3xl p-6 shadow-[0_8px_30px_rgba(26,23,20,0.04)] border border-border/50",
+      "image_card": "relative rounded-3xl overflow-hidden shadow-sm",
+      "interactive": "transition-transform duration-300 hover:-translate-y-1 hover:shadow-md"
+    },
+    "buttons": {
+      "primary": "bg-primary text-white rounded-full py-4 px-8 font-bold flex items-center justify-center gap-2 hover:bg-primary_hover transition-colors shadow-[0_4px_14px_rgba(224,93,58,0.25)]",
+      "secondary": "bg-background_secondary text-text_primary rounded-full py-4 px-8 font-bold flex items-center justify-center gap-2 hover:bg-border transition-colors",
+      "outline": "border-2 border-border text-text_primary rounded-full py-3 px-6 font-bold flex items-center justify-center hover:border-text_primary transition-colors",
+      "icon": "h-12 w-12 rounded-full flex items-center justify-center bg-background_secondary text-text_primary hover:bg-border"
+    },
+    "inputs": {
+      "text": "w-full bg-background_secondary border-none rounded-2xl py-4 px-5 text-text_primary placeholder:text-text_secondary/60 focus:ring-2 focus:ring-primary/20 transition-all outline-none",
+      "search": "w-full bg-background_secondary border-none rounded-full py-4 pl-12 pr-5 text-text_primary focus:ring-2 focus:ring-primary/20"
+    },
+    "bottom_sheet": {
+      "container": "fixed inset-x-0 bottom-0 z-50 bg-card_bg rounded-t-[32px] p-6 sm:p-8 shadow-[0_-8px_40px_rgba(26,23,20,0.08)]",
+      "handle": "w-12 h-1.5 bg-border rounded-full mx-auto mb-6"
+    },
+    "tags": {
+      "default": "bg-background_secondary text-text_primary px-3 py-1 rounded-full text-xs font-bold"
+    }
+  },
+  "spacing_and_layout": {
+    "generous_spacing": true,
+    "screen_padding": "px-6 py-8",
+    "gap_standard": "gap-6",
+    "gap_large": "gap-8"
+  },
+  "screens": {
+    "onboarding": {
+      "layout": "Full-height image background with a bottom sheet style card for the login flow.",
+      "details": "Use abstract terracotta background. Clear H1 'Discover. Save. Taste.'. Email input, primary CTA 'Continue'. OTP screen uses 4 large digit boxes."
+    },
+    "home_dashboard": {
+      "layout": "Scrollable feed. Sticky header with greeting and profile avatar.",
+      "details": "Horizontal scrolling bento cards for 'Stats' (Saved Places, Recipes). Section for 'Recently Added'. Search bar fixed below header."
+    },
+    "saved_places": {
+      "layout": "Grid/List toggle. Default to vertical list of large cards.",
+      "details": "Image takes 60% of card height. Source badge (e.g. Instagram icon) overlapping image. Bold title, subtle cuisine tags. Action buttons: Navigate (Google Maps) and Order (Swiggy)."
+    },
+    "saved_recipes": {
+      "layout": "Vertical scroll. Cards with side-by-side layout on larger screens, stacked on mobile.",
+      "details": "Focus on the finished dish image. Show prep time and ingredients count. Primary CTA: 'Order Ingredients (Swiggy)'."
+    },
+    "items_to_order": {
+      "layout": "Dense list format.",
+      "details": "Small square thumbnail, item name, restaurant name. Right-aligned price and 'Order' pill button."
+    },
+    "share_handler_flow": {
+      "layout": "Modal / Bottom sheet overlaying the current context.",
+      "details": "1. Scanning state: pulsing animation over image thumbnail. 2. Confirmation state: editable fields for Category (Place/Recipe), Name, Location. 3. Success state with green checkmark."
+    },
+    "detail_view": {
+      "layout": "Parallax hero image. Content slides up over the image.",
+      "details": "Massive H1 for the place/recipe name. Content divided into 'About', 'What to get', 'Location'. Floating action bar at the bottom with main CTAs."
+    }
+  },
+  "micro_interactions": {
+    "buttons": "Scale down slightly (scale-95) on active/press. Smooth bg color transition.",
+    "cards": "Subtle Y-axis translation and shadow expansion on hover.",
+    "page_transitions": "Slide up and fade in for new screens. Bottom sheets slide from bottom.",
+    "loading": "Use skeleton screens with a soft wave animation in the #F3EFEA color. Avoid generic spinners.",
+    "save_action": "Heart icon performs a quick pop/scale bounce when filled."
+  },
+  "icons": {
+    "library": "lucide-react (or lucide-react-native)",
+    "style": "stroke-width 2, rounded caps and joins. Avoid filled icons except for active tab or favorite state.",
+    "recommendations": {
+      "places": "MapPin",
+      "recipes": "ChefHat or BookOpen",
+      "items": "ShoppingBag",
+      "share": "Share",
+      "swiggy": "Use an orange ShoppingBag or generic delivery icon with 'Swiggy' text",
+      "google_maps": "Map or Navigation"
+    }
+  },
+  "media": {
+    "hero_backgrounds": [
+      {
+        "url": "https://images.unsplash.com/photo-1632163619030-f36a845fa4fb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwxfHxhYnN0cmFjdCUyMHdhcm0lMjB0ZXJyYWNvdHRhJTIwdGV4dHVyZSUyMGJhY2tncm91bmR8ZW58MHx8fHwxNzc3ODc4ODc2fDA&ixlib=rb-4.1.0&q=85",
+        "category": "onboarding_background",
+        "description": "Warm terracotta texture for the onboarding screen background"
+      }
+    ],
+    "restaurant_places": [
+      {
+        "url": "https://images.unsplash.com/photo-1776703808255-42a98f22547f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwyfHxjb3p5JTIwYWVzdGhldGljJTIwcmVzdGF1cmFudCUyMGludGVyaW9yfGVufDB8fHx8MTc3Nzg3ODg2NXww&ixlib=rb-4.1.0&q=85",
+        "category": "place_thumbnail",
+        "description": "Cozy aesthetic cafe interior with plants"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1769867863357-790b6150e3b8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzR8MHwxfHNlYXJjaHwzfHxjb3p5JTIwYWVzdGhldGljJTIwcmVzdGF1cmFudCUyMGludGVyaW9yfGVufDB8fHx8MTc3Nzg3ODg2NXww&ixlib=rb-4.1.0&q=85",
+        "category": "place_thumbnail",
+        "description": "Modern restaurant interior with stairs"
+      }
+    ],
+    "recipes_food": [
+      {
+        "url": "https://images.unsplash.com/photo-1766557000370-e90df4bacea9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2Mzl8MHwxfHNlYXJjaHwyfHxnb3VybWV0JTIwcGxhdGVkJTIwZm9vZCUyMHBhc3RhfGVufDB8fHx8MTc3Nzg3ODg2NXww&ixlib=rb-4.1.0&q=85",
+        "category": "recipe_thumbnail",
+        "description": "Steak, pasta, and salmon"
+      },
+      {
+        "url": "https://images.pexels.com/photos/262961/pexels-photo-262961.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "recipe_thumbnail",
+        "description": "Delicious penne pasta with creamy cheese sauce"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1576398289164-c48dc021b4e1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MTJ8MHwxfHNlYXJjaHwxfHxmcmVzaCUyMG9yZ2FuaWMlMjBpbmdyZWRpZW50cyUyMGxheW91dCUyMGZsYXRsYXl8ZW58MHx8fHwxNzc3ODc4ODc2fDA&ixlib=rb-4.1.0&q=85",
+        "category": "ingredients_thumbnail",
+        "description": "Fresh ingredients sliced on board"
+      }
+    ],
+    "empty_states": [
+      {
+        "url": "https://images.pexels.com/photos/34957340/pexels-photo-34957340.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "empty_state_texture",
+        "description": "Cracked terracotta texture to use as a mask or subtle background for empty state illustrations"
+      }
+    ]
+  },
+  "empty_and_loading_states": {
+    "empty": "Do not just show text. Use a large, soft-edged icon (e.g., Plate or ChefHat) in the secondary color (#7A8B76), accompanied by a friendly, encouraging message like 'Your vault is empty. Time to go hunting.'",
+    "loading": "Use the 'Pulse' effect on grey blocks (#F3EFEA). For the AI extraction screen, use a shimmering gradient overlay that traces the image borders."
+  },
+  "testing": {
+    "attributes": "All interactive and key informational elements MUST include a data-testid attribute in kebab-case."
+  },
+  "instructions_to_main_agent": [
+    "Use the exact color hex codes provided. DO NOT use default Tailwind colors like slate or blue.",
+    "Headings must use 'Cabinet Grotesk'. Use tracking-tight for all headings above 24px.",
+    "Implement the 'generous spacing' rule. If you think p-4 is enough, use p-6 or p-8.",
+    "No pure black backgrounds or text. Use the #1A1714 defined in text_primary.",
+    "Avoid the generic card component look. Use flat surfaces with large rounded corners (rounded-3xl) and very soft ambient shadows.",
+    "For the Swiggy integration buttons, use the primary color (#E05D3A) and a shopping bag icon.",
+    "Ensure all user-uploaded content (thumbnails) have a subtle dark gradient overlay at the bottom if text is placed on them.",
+    "Since this is a mobile app UI, heavily use bottom sheets (fixed bottom div with border-top-radius) for filters and sharing flows."
+  ]
+}
