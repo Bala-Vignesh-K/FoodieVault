@@ -2,9 +2,13 @@
 import os
 import re
 import uuid
+import json
 import random
+import hashlib
 import logging
 import asyncio
+import tempfile
+import subprocess
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Literal
@@ -31,6 +35,12 @@ EMERGENT_LLM_KEY = os.environ['EMERGENT_LLM_KEY']
 JWT_SECRET = os.environ['JWT_SECRET']
 JWT_EXPIRY_DAYS = int(os.environ.get('JWT_EXPIRY_DAYS', 30))
 OTP_EXPIRY_MINUTES = int(os.environ.get('OTP_EXPIRY_MINUTES', 10))
+
+# Transcript-related configuration
+TRANSCRIPT_MAX_CHARS = int(os.environ.get("TRANSCRIPT_MAX_CHARS", 18000))
+WHISPER_MODEL_SIZE = os.environ.get("WHISPER_MODEL_SIZE", "small")
+WHISPER_DEVICE = os.environ.get("WHISPER_DEVICE", "cpu")
+WHISPER_COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "int8")
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -172,6 +182,282 @@ def detect_platform(url: str) -> SourcePlatform:
     return "other"
 
 
+# ---------- Transcript Helpers ----------
+def normalize_source_url(url: str) -> str:
+    """Create a stable URL key for transcript caching."""
+    return url.strip().split("#", 1)[0]
+
+
+def transcript_cache_key(url: str) -> str:
+    normalized = normalize_source_url(url)
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def sanitize_transcript_text(text: str) -> str:
+    """Collapse whitespace and keep transcript within the LLM context budget."""
+    cleaned = re.sub(r"\s+", " ", text or "").strip()
+    return cleaned[:TRANSCRIPT_MAX_CHARS]
+
+
+async def run_command(command: List[str], timeout_seconds: int = 120) -> subprocess.CompletedProcess:
+    """Run a blocking shell command in a worker thread so FastAPI's event loop is not blocked."""
+    def _run() -> subprocess.CompletedProcess:
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            check=False,
+        )
+
+    return await asyncio.to_thread(_run)
+
+
+async def get_cached_transcript(url: str) -> Optional[dict]:
+    key = transcript_cache_key(url)
+    cached = await db.transcripts.find_one({"cache_key": key}, {"_id": 0})
+    return cached
+
+
+async def save_cached_transcript(url: str, platform: SourcePlatform, transcript: str, method: str) -> dict:
+    key = transcript_cache_key(url)
+    record = {
+        "cache_key": key,
+        "source_url": normalize_source_url(url),
+        "source_platform": platform,
+        "transcript": sanitize_transcript_text(transcript),
+        "method": method,
+        "created_at": iso_now(),
+        "updated_at": iso_now(),
+    }
+    await db.transcripts.update_one(
+        {"cache_key": key},
+        {"$set": record},
+        upsert=True,
+    )
+    return record
+
+
+async def fetch_youtube_transcript_api(url: str) -> Optional[str]:
+    """Try fetching YouTube captions using youtube-transcript-api."""
+    try:
+        from youtube_transcript_api import YouTubeTranscriptApi
+    except Exception as e:
+        logger.info(f"youtube-transcript-api unavailable: {e}")
+        return None
+
+    video_id = extract_youtube_video_id(url)
+    if not video_id:
+        return None
+
+    def _fetch() -> Optional[str]:
+        try:
+            transcript = YouTubeTranscriptApi.get_transcript(video_id, languages=["en"])
+        except Exception:
+            try:
+                transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+                transcript_obj = None
+                for candidate in transcript_list:
+                    transcript_obj = candidate
+                    if getattr(candidate, "language_code", "").startswith("en"):
+                        break
+                if not transcript_obj:
+                    return None
+                transcript = transcript_obj.fetch()
+            except Exception:
+                return None
+
+        lines = []
+        for row in transcript:
+            text = row.get("text", "") if isinstance(row, dict) else ""
+            if text:
+                lines.append(text)
+        return " ".join(lines).strip() or None
+
+    return await asyncio.to_thread(_fetch)
+
+
+def extract_youtube_video_id(url: str) -> Optional[str]:
+    patterns = [
+        r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([A-Za-z0-9_-]{6,})",
+        r"youtube\.com/embed/([A-Za-z0-9_-]{6,})",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, url)
+        if match:
+            return match.group(1)
+    return None
+
+
+async def fetch_ytdlp_captions(url: str, workdir: Path) -> Optional[str]:
+    """Try downloading captions/subtitles using yt-dlp."""
+    output_template = str(workdir / "captions.%(ext)s")
+    command = [
+        "yt-dlp",
+        "--skip-download",
+        "--write-subs",
+        "--write-auto-subs",
+        "--sub-langs",
+        "en.*",
+        "--sub-format",
+        "vtt/srv3/ttml/best",
+        "-o",
+        output_template,
+        url,
+    ]
+    result = await run_command(command, timeout_seconds=120)
+    if result.returncode != 0:
+        logger.info(f"yt-dlp captions failed for {url}: {result.stderr[:500]}")
+        return None
+
+    caption_files = list(workdir.glob("captions*.vtt")) + list(workdir.glob("captions*.srv3")) + list(workdir.glob("captions*.ttml"))
+    if not caption_files:
+        return None
+
+    raw = caption_files[0].read_text(encoding="utf-8", errors="ignore")
+    return parse_caption_text(raw)
+
+
+def parse_caption_text(raw: str) -> Optional[str]:
+    """Parse common subtitle formats into plain text."""
+    if not raw:
+        return None
+
+    lines = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.upper().startswith("WEBVTT"):
+            continue
+        if "-->" in line:
+            continue
+        if re.match(r"^\d+$", line):
+            continue
+        line = re.sub(r"<[^>]+>", "", line)
+        line = re.sub(r"&amp;", "&", line)
+        line = re.sub(r"&lt;", "<", line)
+        line = re.sub(r"&gt;", ">", line)
+        if line:
+            lines.append(line)
+
+    text = " ".join(lines).strip()
+    return text or None
+
+
+async def extract_audio_with_ytdlp(url: str, workdir: Path) -> Optional[Path]:
+    """Use yt-dlp to download/extract audio from YouTube or Instagram."""
+    output_template = str(workdir / "source_audio.%(ext)s")
+    command = [
+        "yt-dlp",
+        "-f",
+        "bestaudio/best",
+        "--extract-audio",
+        "--audio-format",
+        "mp3",
+        "--audio-quality",
+        "0",
+        "-o",
+        output_template,
+        url,
+    ]
+    result = await run_command(command, timeout_seconds=240)
+    if result.returncode != 0:
+        logger.info(f"yt-dlp audio extraction failed for {url}: {result.stderr[:500]}")
+        return None
+
+    candidates = list(workdir.glob("source_audio*.mp3")) + list(workdir.glob("source_audio*.*"))
+    return candidates[0] if candidates else None
+
+
+async def convert_audio_with_ffmpeg(input_path: Path, workdir: Path) -> Optional[Path]:
+    """Normalize audio to mono 16k WAV for Whisper."""
+    output_path = workdir / "audio.wav"
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        str(input_path),
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        str(output_path),
+    ]
+    result = await run_command(command, timeout_seconds=180)
+    if result.returncode != 0:
+        logger.info(f"ffmpeg conversion failed: {result.stderr[:500]}")
+        return None
+    return output_path if output_path.exists() else None
+
+
+async def transcribe_with_faster_whisper(audio_path: Path) -> Optional[str]:
+    """Transcribe local audio using faster-whisper."""
+    try:
+        from faster_whisper import WhisperModel
+    except Exception as e:
+        logger.warning(f"faster-whisper unavailable: {e}")
+        return None
+
+    def _transcribe() -> Optional[str]:
+        try:
+            model = WhisperModel(
+                WHISPER_MODEL_SIZE,
+                device=WHISPER_DEVICE,
+                compute_type=WHISPER_COMPUTE_TYPE,
+            )
+            segments, _info = model.transcribe(str(audio_path), beam_size=5)
+            return " ".join(segment.text.strip() for segment in segments if segment.text).strip() or None
+        except Exception as e:
+            logger.error(f"Whisper transcription failed: {e}")
+            return None
+
+    return await asyncio.to_thread(_transcribe)
+
+
+async def extract_transcript_from_url(url: str, platform: SourcePlatform) -> dict:
+    """Extract/cached transcript for supported video platforms."""
+    cached = await get_cached_transcript(url)
+    if cached and cached.get("transcript"):
+        return {
+            "transcript": cached["transcript"],
+            "method": cached.get("method", "cache"),
+            "cached": True,
+        }
+
+    if platform not in {"youtube", "instagram"}:
+        return {"transcript": "", "method": "unsupported_platform", "cached": False}
+
+    with tempfile.TemporaryDirectory(prefix="foodievault-transcript-") as tmp:
+        workdir = Path(tmp)
+
+        if platform == "youtube":
+            transcript = await fetch_youtube_transcript_api(url)
+            if transcript:
+                record = await save_cached_transcript(url, platform, transcript, "youtube_transcript_api")
+                return {"transcript": record["transcript"], "method": record["method"], "cached": False}
+
+            transcript = await fetch_ytdlp_captions(url, workdir)
+            if transcript:
+                record = await save_cached_transcript(url, platform, transcript, "yt_dlp_captions")
+                return {"transcript": record["transcript"], "method": record["method"], "cached": False}
+
+        audio_path = await extract_audio_with_ytdlp(url, workdir)
+        if not audio_path:
+            return {"transcript": "", "method": "audio_extraction_failed", "cached": False}
+
+        normalized_audio = await convert_audio_with_ffmpeg(audio_path, workdir)
+        if not normalized_audio:
+            return {"transcript": "", "method": "ffmpeg_conversion_failed", "cached": False}
+
+        transcript = await transcribe_with_faster_whisper(normalized_audio)
+        if not transcript:
+            return {"transcript": "", "method": "whisper_failed", "cached": False}
+
+        record = await save_cached_transcript(url, platform, transcript, "faster_whisper")
+        return {"transcript": record["transcript"], "method": record["method"], "cached": False}
+
+
 async def fetch_page_metadata(url: str) -> dict:
     """Fetch OpenGraph metadata from a URL."""
     headers = {
@@ -215,7 +501,7 @@ async def fetch_page_metadata(url: str) -> dict:
 
 
 EXTRACTION_SYSTEM = """You are a smart content analyzer for a food discovery app called FoodieVault.
-Users share social media posts (Instagram/YouTube/TikTok) about food experiences. Your job: extract structured info.
+Users share social media posts (Instagram/YouTube/TikTok) about food experiences. Your job: extract structured info from the available metadata and transcript. When transcript text is available, treat it as the primary source of truth because it captures what was actually said in the video.
 
 Classify the content as exactly ONE of:
 - "place" : A restaurant, cafe, bar, or food location user wants to visit
@@ -243,12 +529,13 @@ Rules:
 """
 
 
-async def extract_with_ai(metadata: dict, url: str, platform: SourcePlatform) -> dict:
+async def extract_with_ai(metadata: dict, url: str, platform: SourcePlatform, transcript: str = "") -> dict:
     """Use Gemini via Emergent LLM key to extract structured data."""
     source_blob = f"""PLATFORM: {platform}
 URL: {url}
 TITLE: {metadata.get('title', '')}
 DESCRIPTION: {metadata.get('description', '')}
+TRANSCRIPT: {sanitize_transcript_text(transcript)}
 """
     session_id = f"extract-{uuid.uuid4()}"
     chat = LlmChat(
@@ -392,13 +679,17 @@ async def extract_from_url(payload: ExtractRequest, user: dict = Depends(get_cur
 
     platform = detect_platform(url)
     metadata = await fetch_page_metadata(url)
-    ai_data = await extract_with_ai(metadata, url, platform)
+    transcript_data = await extract_transcript_from_url(url, platform)
+    ai_data = await extract_with_ai(metadata, url, platform, transcript_data.get("transcript", ""))
 
     result = {
         **ai_data,
         "source_platform": platform,
         "source_url": url,
         "thumbnail_url": metadata.get("thumbnail") or None,
+        "transcript_available": bool(transcript_data.get("transcript")),
+        "transcript_method": transcript_data.get("method"),
+        "transcript_cached": bool(transcript_data.get("cached")),
     }
     return result
 
